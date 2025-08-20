@@ -14,11 +14,20 @@ const CloseIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w
 const ImageGeneratorIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" /></svg>;
 
 const AvatarSelectionModal: React.FC<AvatarSelectionModalProps> = ({ isOpen, onClose, onAvatarSelect }) => {
-    const [prompt, setPrompt] = useState('A happy cartoon fox with a helmet');
+    const [prompt, setPrompt] = useState('A friendly cyclist with sunglasses');
     const [images, setImages] = useState<string[]>([]);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [showPresets, setShowPresets] = useState(false);
+
+    // Suggested prompts for better avatar generation
+    const suggestedPrompts = [
+        'A friendly cyclist with sunglasses',
+        'A happy runner in athletic gear',
+        'A mountain biker with a helmet',
+        'A yoga enthusiast in peaceful pose',
+        'A fitness trainer with a smile'
+    ];
 
     // Predefined avatar options as additional fallback
     const presetAvatars = [
@@ -38,16 +47,18 @@ const AvatarSelectionModal: React.FC<AvatarSelectionModalProps> = ({ isOpen, onC
         setError(null);
         setImages([]);
         try {
+            logger.info("Starting avatar generation with prompt:", prompt);
             const generatedImages = await generateAvatarImages(prompt);
-            setImages(generatedImages);
             
-            // If we got fallback images, show a helpful message
-            if (generatedImages.length > 0 && generatedImages[0].includes('dicebear.com')) {
-                logger.info("Using fallback avatar generation service");
+            if (generatedImages && generatedImages.length > 0) {
+                setImages(generatedImages);
+                logger.info("Successfully generated", generatedImages.length, "avatars");
+            } else {
+                throw new Error("No avatars were generated. Please try a different description.");
             }
         } catch (err: any) {
             logger.error("Avatar generation error:", err);
-            setError(err.message || "Failed to generate images. Please try again with a different description.");
+            setError(err.message || "Failed to generate avatars. Please try again with a different description.");
         } finally {
             setIsLoading(false);
         }

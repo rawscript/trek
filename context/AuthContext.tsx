@@ -1,5 +1,6 @@
 
 import React, { createContext, useState, ReactNode, useEffect } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { User } from '../types';
 
 interface AuthContextType {
@@ -16,20 +17,58 @@ interface AuthProviderProps {
   children: ReactNode;
 }
 
+const STORAGE_KEY = 'trekly-user';
+const isWeb = typeof window !== 'undefined' && typeof (window as any).localStorage !== 'undefined' && typeof (window as any).document !== 'undefined';
+
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
 
   useEffect(() => {
+    const loadUser = async () => {
+      try {
+        if (isWeb) {
+          const storedUser = window.localStorage.getItem(STORAGE_KEY);
+          if (storedUser) {
+            const parsedUser: User = JSON.parse(storedUser);
+            setUser(parsedUser);
+          }
+        } else {
+          const storedUser = await AsyncStorage.getItem(STORAGE_KEY);
+          if (storedUser) {
+            const parsedUser: User = JSON.parse(storedUser);
+            setUser(parsedUser);
+          }
+        }
+      } catch (error) {
+        console.error('Error loading user from storage', error);
+      }
+    };
+
+    // no await in useEffect
+    loadUser();
+  }, []);
+
+  const persistUser = (value: User | null) => {
     try {
-      const storedUser = window.localStorage.getItem('trekly-user');
-      if (storedUser) {
-        const parsedUser: User = JSON.parse(storedUser);
-        setUser(parsedUser);
+      if (value) {
+        const json = JSON.stringify(value);
+        if (isWeb) {
+          window.localStorage.setItem(STORAGE_KEY, json);
+        } else {
+          // fire-and-forget; we don't await to keep the signature synchronous
+          AsyncStorage.setItem(STORAGE_KEY, json).catch(err => console.error('AsyncStorage setItem error', err));
+        }
+      } else {
+        if (isWeb) {
+          window.localStorage.removeItem(STORAGE_KEY);
+        } else {
+          AsyncStorage.removeItem(STORAGE_KEY).catch(err => console.error('AsyncStorage removeItem error', err));
+        }
       }
     } catch (error) {
-      console.error('Error reading from localStorage', error);
+      console.error('Error persisting user to storage', error);
     }
-  }, []);
+  };
 
   const login = (name: string) => {
     const userId = `user_${Date.now()}`;
@@ -39,54 +78,37 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       avatarUrl: `https://i.pravatar.cc/150?u=${name}`,
       isOnboardingCompleted: false,
     };
-    
-    try {
-        window.localStorage.setItem('trekly-user', JSON.stringify(newUser));
-    } catch (error) {
-        console.error('Error writing to localStorage', error);
-    }
+
+    persistUser(newUser);
     setUser(newUser);
   };
 
   const updateUser = (updates: Partial<Omit<User, 'id'>>) => {
     setUser(prevUser => {
       if (!prevUser) return null;
-      
-      const updatedUser = { ...prevUser, ...updates };
 
-      // If name is part of the update, also update the avatar URL
+      const updatedUser: User = { ...prevUser, ...updates };
+
       if (updates.name) {
-          updatedUser.avatarUrl = `https://i.pravatar.cc/150?u=${updates.name}`;
+        updatedUser.avatarUrl = `https://i.pravatar.cc/150?u=${updates.name}`;
       }
-      
-      try {
-        window.localStorage.setItem('trekly-user', JSON.stringify(updatedUser));
-      } catch (error) {
-          console.error('Error writing to localStorage', error);
-      }
+
+      persistUser(updatedUser);
       return updatedUser;
     });
   };
-  
+
   const completeOnboarding = () => {
     setUser(prevUser => {
       if (!prevUser) return null;
-      const updatedUser = { ...prevUser, isOnboardingCompleted: true };
-      try {
-        window.localStorage.setItem('trekly-user', JSON.stringify(updatedUser));
-      } catch (error) {
-        console.error('Error writing to localStorage', error);
-      }
+      const updatedUser: User = { ...prevUser, isOnboardingCompleted: true };
+      persistUser(updatedUser);
       return updatedUser;
     });
   };
 
   const logout = () => {
-    try {
-        window.localStorage.removeItem('trekly-user');
-    } catch (error) {
-        console.error('Error removing from localStorage', error);
-    }
+    persistUser(null);
     setUser(null);
   };
 

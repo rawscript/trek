@@ -59,22 +59,51 @@ const ChatScreen: React.FC = () => {
       const stream = await streamChatMessage(messages, currentInput);
       setMessages(prev => [...prev, { role: 'model', text: '' }]);
 
-      for await (const chunk of stream) {
-        const chunkText = chunk.text;
-        setMessages(prev => {
-           const lastMessage = prev[prev.length - 1];
-           if (lastMessage && lastMessage.role === 'model') {
-             return [...prev.slice(0, -1), { ...lastMessage, text: lastMessage.text + chunkText }];
-           }
-           return prev;
-        });
+      // Handle the streaming response
+      if (stream && typeof stream[Symbol.asyncIterator] === 'function') {
+        for await (const chunk of stream) {
+          if (chunk && chunk.text) {
+            const chunkText = chunk.text;
+            setMessages(prev => {
+              const lastMessage = prev[prev.length - 1];
+              if (lastMessage && lastMessage.role === 'model') {
+                return [...prev.slice(0, -1), { ...lastMessage, text: lastMessage.text + chunkText }];
+              }
+              return prev;
+            });
+          }
+        }
+      } else {
+        // Fallback for non-streaming response
+        throw new Error("Streaming not supported, falling back to regular response");
       }
     } catch (error: any) {
       logger.error('Error streaming message:', error);
-      setError("I'm having trouble connecting right now. Please check your connection and try again.");
+      
+      // Remove the empty message we added
       setMessages(prev => prev.filter(msg => msg.text !== ''));
+      
+      // Try to provide a fallback response
+      const fallbackResponses = [
+        "I'm having some technical difficulties right now, but I'm here to help! Could you try rephrasing your question?",
+        "Sorry, I'm experiencing some connection issues. Let me know what you'd like help with and I'll do my best to assist!",
+        "I'm having trouble processing that request right now. Is there something specific about your fitness journey I can help with?",
+        "Technical hiccup on my end! Feel free to ask me about route planning, training tips, or anything fitness-related."
+      ];
+      
+      const randomResponse = fallbackResponses[Math.floor(Math.random() * fallbackResponses.length)];
+      
+      setMessages(prev => [...prev, { role: 'model', text: randomResponse }]);
+      setError("I'm having trouble connecting to the AI service. I've provided a fallback response above.");
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleRetry = () => {
+    setError(null);
+    if (input.trim()) {
+      handleSend();
     }
   };
 
@@ -110,7 +139,7 @@ const ChatScreen: React.FC = () => {
       
       {error && (
         <div className="p-3">
-            <ErrorDisplay title="Connection Error" message={error} onRetry={handleSend} />
+            <ErrorDisplay title="Connection Error" message={error} onRetry={handleRetry} />
         </div>
       )}
 

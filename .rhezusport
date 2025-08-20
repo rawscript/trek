@@ -1,0 +1,75 @@
+What I changed now
+
+Converted two remaining contexts to cross‑platform storage so they work in native builds:
+context/PreferencesContext.tsx now uses AsyncStorage on native and localStorage on web
+context/ActivityContext.tsx now uses AsyncStorage on native and localStorage on web
+Made text-to-speech cross‑platform:
+services/ttsService.ts now uses expo-speech on native and keeps SpeechSynthesis on web
+Your babel.config.js already includes react-native-reanimated/plugin (correct placement)
+What still needs changing before a native build
+
+deviceService: currently uses Web Bluetooth (not supported in Expo Go or standard RN). For a production build:
+Guard it for native and return a clear “not supported in this build” error, or
+Replace with a React Native BLE library and create a dev build; this is a larger task
+Screens that import DOM/framer-motion/recharts and browser APIs must not be included in the native bundle:
+Add .native.tsx versions for screens and keep them minimal using RN primitives and react-native-paper
+For charts, use react-native-chart-kit (already installed) with react-native-svg
+For geolocation, use expo-location in native screens; for maps, use react-native-maps (already in deps)
+Assets folder: app.json references ./assets/* files (icon, splash, adaptive icon). Ensure these exist; otherwise the EAS build will fail. If they don’t exist, add them or update app.json paths.
+Build steps to produce an installable app without Expo Go
+
+Install tools
+npm install
+Install EAS CLI globally:
+npm i -g eas-cli
+Log in:
+eas login
+Configure EAS
+Initialize (creates eas.json with profiles):
+eas build:configure
+Recommended: set app identifiers in app.json (already present):
+ios.bundleIdentifier: com.trekly.app
+android.package: com.trekly.app
+iOS or Android platform caveats
+Android: you can generate a signed .aab or .apk that you can sideload to your device
+iOS: you need an Apple Developer account; you’ll produce an .ipa usable via TestFlight or Ad Hoc
+Build
+Android (APK for quick install; development or preview profile if you need non-Store install):
+eas build --platform android --profile preview
+Or for aab (store-ready):
+eas build --platform android --profile production
+iOS (requires Apple credentials):
+eas build --platform ios --profile production
+Install on your phone
+Android:
+Download the .apk from the EAS build page and install it (enable “install from unknown sources”)
+Or use adb:
+Enable USB debugging on your device
+Connect via USB
+adb install path/to/app.apk
+iOS:
+Best path is TestFlight distribution through EAS/Apple
+Alternatively, use Ad Hoc builds for specific device UDIDs (more setup)
+Minimum code changes you still need before building
+
+Guard deviceService on native:
+Detect Platform.OS !== 'web' and throw a friendly error instead of accessing navigator.bluetooth
+Create minimal .native.tsx versions for imported screens to avoid bundling DOM/framer-motion/recharts:
+LoginScreen.native.tsx, OnboardingScreen.native.tsx, HomeScreen.native.tsx, MapScreen.native.tsx, ActivityScreen.native.tsx, SocialScreen.native.tsx, ChatScreen.native.tsx, FundraiserListScreen.native.tsx, CreateFundraiserScreen.native.tsx, FundraiserDetailScreen.native.tsx, NotificationsScreen.native.tsx, SettingsScreen.native.tsx
+Use RN primitives and react-native-paper; replace web APIs with expo-location/react-native-maps, and recharts with react-native-chart-kit
+Validation checks before build
+
+Ensure assets referenced in app.json exist:
+./assets/icon.png, ./assets/splash.png, ./assets/adaptive-icon.png, ./assets/favicon.png
+Ensure babel plugin ordering (react-native-reanimated/plugin last) remains correct
+Ensure app.json permissions are present for features you use (location, camera, microphone already listed)
+Commands summary
+
+Install deps: npm install
+Install Expo modules (if adding new ones): npx expo install
+EAS login: eas login
+Configure EAS: eas build:configure
+Build Android (APK): eas build --platform android --profile preview
+Build Android (Play Store AAB): eas build --platform android --profile production
+Build iOS: eas build --platform ios --profile production
+Result Follow the code changes list (guard deviceService and create native screens), verify assets exist, then use EAS build commands above to get an installable binary that runs without installing the Expo Go app.
