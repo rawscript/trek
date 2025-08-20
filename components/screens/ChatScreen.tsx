@@ -1,0 +1,130 @@
+import React, { useState, useRef, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { streamChatMessage } from '../../services/geminiService';
+import { useAuth } from '../../hooks/useAuth';
+import { ChatMessage } from '../../types';
+import Loader from '../ui/Loader';
+import ErrorDisplay from '../ui/ErrorDisplay';
+
+const ChatScreen: React.FC = () => {
+  const { user } = useAuth();
+  const [messages, setMessages] = useState<ChatMessage[]>([
+    { role: 'model', text: `Hi ${user?.name}! How can I help you plan your next adventure today? 🚴‍♀️` }
+  ]);
+  const [input, setInput] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages, isLoading]);
+
+  const handleSend = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!input.trim() || isLoading) return;
+
+    const userMessage: ChatMessage = { role: 'user', text: input };
+    const currentInput = input;
+    setError(null);
+    setMessages(prev => [...prev, userMessage]);
+    setInput('');
+    setIsLoading(true);
+
+    try {
+      const stream = await streamChatMessage(messages, currentInput);
+      setMessages(prev => [...prev, { role: 'model', text: '' }]);
+
+      for await (const chunk of stream) {
+        const chunkText = chunk.text;
+        setMessages(prev => {
+           const lastMessage = prev[prev.length - 1];
+           if (lastMessage && lastMessage.role === 'model') {
+             return [...prev.slice(0, -1), { ...lastMessage, text: lastMessage.text + chunkText }];
+           }
+           return prev;
+        });
+      }
+    } catch (error)      {
+      console.error('Error streaming message:', error);
+      setError("I'm having trouble connecting right now. Please check your connection and try again.");
+      setMessages(prev => prev.filter(msg => msg.text !== ''));
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  return (
+    <div className="flex h-full flex-col">
+      <h1 className="mb-4 shrink-0 text-3xl font-bold text-brand-dark dark:text-brand-light">AI Planner</h1>
+      <div className="flex-1 space-y-4 overflow-y-auto pb-4 pr-2">
+        <AnimatePresence>
+          {messages.map((msg, index) => (
+            <motion.div
+              key={index}
+              layout
+              initial={{ opacity: 0, y: 10, scale: 0.95 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              transition={{ duration: 0.3, ease: 'easeOut' }}
+              className={`flex items-start gap-3 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+            >
+              {msg.role === 'model' && <img src="https://i.pravatar.cc/150?u=treklyai" alt="AI" className="h-8 w-8 shrink-0 rounded-full" />}
+              <div className={`max-w-xs rounded-2xl px-4 py-3 shadow-sm md:max-w-md ${msg.role === 'user' ? 'rounded-br-none bg-brand-dark text-white' : 'rounded-bl-none bg-gray-100 dark:bg-gray-700 text-brand-dark dark:text-gray-200'}`}>
+                {(msg.text === '' && index === messages.length - 1 && isLoading) ? (
+                   <Loader />
+                ) : (
+                  <p className="whitespace-pre-wrap">{msg.text}</p>
+                )}
+              </div>
+               {msg.role === 'user' && <img src={user?.avatarUrl} alt="User" className="h-8 w-8 shrink-0 rounded-full" />}
+            </motion.div>
+          ))}
+        </AnimatePresence>
+        <div ref={messagesEndRef} />
+      </div>
+      
+      {error && (
+        <div className="p-3">
+            <ErrorDisplay title="Connection Error" message={error} onRetry={handleSend} />
+        </div>
+      )}
+
+      <form onSubmit={handleSend} className="mt-auto shrink-0 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-brand-dark p-3">
+        <div className="flex items-center gap-3">
+            <input
+                type="text"
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                placeholder="Ask anything..."
+                className="w-full flex-1 rounded-full border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-800 px-5 py-3 text-brand-dark dark:text-gray-200 placeholder-gray-500 dark:placeholder-gray-400 transition focus:border-brand-green focus:outline-none focus:ring-1 focus:ring-brand-green"
+                disabled={isLoading}
+                onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
+            />
+            <motion.button
+                type="submit"
+                disabled={isLoading || !input.trim()}
+                className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-brand-green text-white shadow-md transition-colors disabled:bg-gray-400 disabled:shadow-none"
+                whileHover={!isLoading && input.trim() ? { scale: 1.1 } : {}}
+                whileTap={!isLoading && input.trim() ? { scale: 0.95 } : {}}
+                aria-label="Send message"
+            >
+                <SendIcon />
+            </motion.button>
+        </div>
+      </form>
+    </div>
+  );
+};
+
+const SendIcon = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 -rotate-12 transform" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+  </svg>
+);
+
+export default ChatScreen;
