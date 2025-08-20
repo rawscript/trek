@@ -16,7 +16,13 @@
     ],
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.trekly.app"
+      "bundleIdentifier": "com.trekly.app",
+      "infoPlist": {
+        "NSBluetoothAlwaysUsageDescription": "This app uses Bluetooth to connect to fitness devices like heart rate monitors.",
+        "NSBluetoothPeripheralUsageDescription": "This app uses Bluetooth to connect to fitness devices like heart rate monitors.",
+        "NSLocationWhenInUseUsageDescription": "This app uses location to show your position on maps and track your activities.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "This app uses location to show your position on maps and track your activities."
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -28,7 +34,12 @@
         "ACCESS_FINE_LOCATION",
         "ACCESS_COARSE_LOCATION",
         "CAMERA",
-        "RECORD_AUDIO"
+        "RECORD_AUDIO",
+        "BLUETOOTH",
+        "BLUETOOTH_ADMIN",
+        "BLUETOOTH_CONNECT",
+        "BLUETOOTH_SCAN",
+        "ACCESS_BACKGROUND_LOCATION"
       ]
     },
     "web": {
@@ -37,7 +48,15 @@
     "plugins": [
       "expo-location",
       "expo-camera",
-      "expo-av"
+      "expo-av",
+      [
+        "react-native-ble-plx",
+        {
+          "isBackgroundEnabled": true,
+          "modes": ["peripheral", "central"],
+          "bluetoothAlwaysPermission": "This app uses Bluetooth to connect to fitness devices like heart rate monitors."
+        }
+      ]
     ]
   }
 }

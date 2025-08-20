@@ -1,9 +1,13 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
+import { Platform } from 'react-native';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Coords, Amenity, AmenityType } from '../../types';
 import InteractiveMap from '../ui/InteractiveMap';
+import YandexMap from '../ui/YandexMap';
 import { haversineDistance, calculateBearing } from '../../utils/geolocation';
 import { speak } from '../../services/ttsService';
+import { mapsService } from '../../services/mapsService';
+import { useLocation } from '../../hooks/useLocation';
 import Card from '../ui/Card';
 
 
@@ -25,33 +29,14 @@ const SearchIcon = () => (
 
 
 const MapScreen: React.FC = () => {
-    const [userPosition, setUserPosition] = useState<Coords | null>(null);
-    const [error, setError] = useState<string | null>(null);
+    const { position: userPosition, error, loading } = useLocation({
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 0,
+        distanceInterval: 10
+    });
     const [activeFilters, setActiveFilters] = useState<Set<AmenityType>>(new Set(['water', 'bike_shop', 'restroom']));
     const [searchQuery, setSearchQuery] = useState('');
-
-    useEffect(() => {
-        if (!navigator.geolocation) {
-            setError("Geolocation is not supported by your browser.");
-            return;
-        }
-
-        const watchId = navigator.geolocation.watchPosition(
-            (position) => {
-                setUserPosition({
-                    latitude: position.coords.latitude,
-                    longitude: position.coords.longitude,
-                });
-                setError(null);
-            },
-            (err) => {
-                setError(`Error getting location: ${err.message}`);
-            },
-            { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-        );
-
-        return () => navigator.geolocation.clearWatch(watchId);
-    }, []);
 
     const toggleFilter = (filter: AmenityType) => {
         setActiveFilters(prev => {
@@ -88,7 +73,7 @@ const MapScreen: React.FC = () => {
             <h1 className="mb-4 text-3xl font-bold text-brand-dark dark:text-brand-light">Live Map</h1>
             <Card>
                 {error && <p className="mb-4 text-center text-red-500">{error}</p>}
-                {!userPosition && !error && (
+                {loading && (
                     <div className="flex h-80 flex-col items-center justify-center text-brand-gray dark:text-gray-400">
                         <motion.div
                             animate={{ rotate: 360 }}
@@ -101,11 +86,20 @@ const MapScreen: React.FC = () => {
                 <AnimatePresence>
                     {userPosition && (
                         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-                            <InteractiveMap
-                                userPosition={userPosition}
-                                amenities={filteredAmenities}
-                                onAmenitySelect={handleAmenitySelect}
-                            />
+                            {Platform.OS === 'web' ? (
+                                <InteractiveMap
+                                    userPosition={userPosition}
+                                    amenities={filteredAmenities}
+                                    onAmenitySelect={handleAmenitySelect}
+                                />
+                            ) : (
+                                <YandexMap
+                                    userPosition={userPosition}
+                                    amenities={filteredAmenities}
+                                    onAmenitySelect={handleAmenitySelect}
+                                    height={320}
+                                />
+                            )}
                         </motion.div>
                     )}
                 </AnimatePresence>
