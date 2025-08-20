@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { generateAvatarImages } from '../../services/geminiService';
 import ErrorDisplay from './ErrorDisplay';
+import { logger } from '../../config/env';
 
 interface AvatarSelectionModalProps {
   isOpen: boolean;
@@ -17,6 +18,19 @@ const AvatarSelectionModal: React.FC<AvatarSelectionModalProps> = ({ isOpen, onC
     const [images, setImages] = useState<string[]>([]);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [showPresets, setShowPresets] = useState(false);
+
+    // Predefined avatar options as additional fallback
+    const presetAvatars = [
+        'https://api.dicebear.com/7.x/adventurer/svg?seed=fitness-runner',
+        'https://api.dicebear.com/7.x/avataaars/svg?seed=cyclist-pro',
+        'https://api.dicebear.com/7.x/big-smile/svg?seed=happy-athlete',
+        'https://api.dicebear.com/7.x/fun-emoji/svg?seed=sporty-person',
+        'https://api.dicebear.com/7.x/adventurer/svg?seed=mountain-biker',
+        'https://api.dicebear.com/7.x/avataaars/svg?seed=trail-runner',
+        'https://api.dicebear.com/7.x/big-smile/svg?seed=fitness-enthusiast',
+        'https://api.dicebear.com/7.x/fun-emoji/svg?seed=active-lifestyle'
+    ];
 
     const handleGenerate = async () => {
         if (!prompt.trim()) return;
@@ -26,8 +40,14 @@ const AvatarSelectionModal: React.FC<AvatarSelectionModalProps> = ({ isOpen, onC
         try {
             const generatedImages = await generateAvatarImages(prompt);
             setImages(generatedImages);
+            
+            // If we got fallback images, show a helpful message
+            if (generatedImages.length > 0 && generatedImages[0].includes('dicebear.com')) {
+                logger.info("Using fallback avatar generation service");
+            }
         } catch (err: any) {
-            setError(err.message || "Failed to generate images. Please try again.");
+            logger.error("Avatar generation error:", err);
+            setError(err.message || "Failed to generate images. Please try again with a different description.");
         } finally {
             setIsLoading(false);
         }
@@ -61,9 +81,26 @@ const AvatarSelectionModal: React.FC<AvatarSelectionModalProps> = ({ isOpen, onC
                         </button>
 
                         <h2 className="text-2xl font-bold text-brand-dark dark:text-brand-light">Create Your Avatar</h2>
-                        <p className="mt-1 text-sm text-brand-gray dark:text-gray-400">Describe the avatar you want, and our AI will create it for you.</p>
+                        <p className="mt-1 text-sm text-brand-gray dark:text-gray-400">Choose from presets or generate custom avatars with AI.</p>
 
-                        <div className="mt-4 flex gap-2">
+                        {/* Tab Navigation */}
+                        <div className="mt-4 grid grid-cols-2 gap-2 rounded-lg bg-gray-100 p-1 dark:bg-gray-700">
+                            <button
+                                onClick={() => setShowPresets(false)}
+                                className={`rounded-md py-2 text-sm font-semibold transition-colors ${!showPresets ? 'bg-white text-brand-blue shadow dark:bg-gray-800' : 'text-brand-gray dark:text-gray-400'}`}
+                            >
+                                🤖 AI Generate
+                            </button>
+                            <button
+                                onClick={() => setShowPresets(true)}
+                                className={`rounded-md py-2 text-sm font-semibold transition-colors ${showPresets ? 'bg-white text-brand-blue shadow dark:bg-gray-800' : 'text-brand-gray dark:text-gray-400'}`}
+                            >
+                                🎨 Presets
+                            </button>
+                        </div>
+
+                        {!showPresets && (
+                            <div className="mt-4 flex gap-2">
                             <input
                                 type="text"
                                 value={prompt}
@@ -81,8 +118,27 @@ const AvatarSelectionModal: React.FC<AvatarSelectionModalProps> = ({ isOpen, onC
                                 Generate
                             </button>
                         </div>
-                        
+                        )}
+
                         <div className="mt-4 min-h-[16rem]">
+                            {showPresets ? (
+                                <div className="grid grid-cols-2 gap-4">
+                                    {presetAvatars.map((avatar, i) => (
+                                        <motion.button
+                                            key={i}
+                                            onClick={() => handleSelect(avatar)}
+                                            className="overflow-hidden rounded-lg border-2 border-transparent transition-all hover:border-brand-green hover:scale-105 focus:border-brand-green focus:scale-105"
+                                            initial={{ opacity: 0, scale: 0.8 }}
+                                            animate={{ opacity: 1, scale: 1 }}
+                                            transition={{ delay: i * 0.05 }}
+                                            whileTap={{ scale: 0.95 }}
+                                        >
+                                            <img src={avatar} alt={`Preset avatar ${i+1}`} className="aspect-square w-full object-cover" />
+                                        </motion.button>
+                                    ))}
+                                </div>
+                            ) : (
+                                <>
                             {isLoading && (
                                 <div className="flex h-full flex-col items-center justify-center text-brand-gray dark:text-gray-400">
                                     <motion.div
@@ -117,6 +173,8 @@ const AvatarSelectionModal: React.FC<AvatarSelectionModalProps> = ({ isOpen, onC
                                     <p>Your generated avatars will appear here.</p>
                                 </div>
                              )}
+                                </>
+                            )}
                         </div>
                     </motion.div>
                 </motion.div>

@@ -5,12 +5,26 @@ import { useAuth } from '../../hooks/useAuth';
 import { ChatMessage } from '../../types';
 import Loader from '../ui/Loader';
 import ErrorDisplay from '../ui/ErrorDisplay';
+import { features, logger } from '../../config/env';
 
 const ChatScreen: React.FC = () => {
   const { user } = useAuth();
-  const [messages, setMessages] = useState<ChatMessage[]>([
-    { role: 'model', text: `Hi ${user?.name}! How can I help you plan your next adventure today? 🚴‍♀️` }
-  ]);
+  
+  // Check if AI is available and set initial message accordingly
+  const getInitialMessage = (): ChatMessage => {
+    if (!features.isAIAvailable()) {
+      return {
+        role: 'model',
+        text: `Hi ${user?.name}! 👋 I'm currently offline, but I'd love to help you plan your adventures! To enable AI chat, please add your Gemini API key to the environment configuration. In the meantime, you can still track your activities and connect with the community! 🚴‍♀️`
+      };
+    }
+    return {
+      role: 'model',
+      text: `Hi ${user?.name}! How can I help you plan your next adventure today? 🚴‍♀️`
+    };
+  };
+
+  const [messages, setMessages] = useState<ChatMessage[]>([getInitialMessage()]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -27,6 +41,12 @@ const ChatScreen: React.FC = () => {
   const handleSend = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (!input.trim() || isLoading) return;
+
+    // If AI is not available, show a helpful message
+    if (!features.isAIAvailable()) {
+      setError("AI chat is currently unavailable. Please check your API configuration.");
+      return;
+    }
 
     const userMessage: ChatMessage = { role: 'user', text: input };
     const currentInput = input;
@@ -49,8 +69,8 @@ const ChatScreen: React.FC = () => {
            return prev;
         });
       }
-    } catch (error)      {
-      console.error('Error streaming message:', error);
+    } catch (error: any) {
+      logger.error('Error streaming message:', error);
       setError("I'm having trouble connecting right now. Please check your connection and try again.");
       setMessages(prev => prev.filter(msg => msg.text !== ''));
     } finally {
@@ -100,17 +120,17 @@ const ChatScreen: React.FC = () => {
                 type="text"
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
-                placeholder="Ask anything..."
-                className="w-full flex-1 rounded-full border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-800 px-5 py-3 text-brand-dark dark:text-gray-200 placeholder-gray-500 dark:placeholder-gray-400 transition focus:border-brand-green focus:outline-none focus:ring-1 focus:ring-brand-green"
-                disabled={isLoading}
+                placeholder={features.isAIAvailable() ? "Ask anything..." : "AI chat is currently unavailable"}
+                className="w-full flex-1 rounded-full border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-800 px-5 py-3 text-brand-dark dark:text-gray-200 placeholder-gray-500 dark:placeholder-gray-400 transition focus:border-brand-green focus:outline-none focus:ring-1 focus:ring-brand-green disabled:opacity-50"
+                disabled={isLoading || !features.isAIAvailable()}
                 onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
             />
             <motion.button
                 type="submit"
-                disabled={isLoading || !input.trim()}
+                disabled={isLoading || !input.trim() || !features.isAIAvailable()}
                 className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-brand-green text-white shadow-md transition-colors disabled:bg-gray-400 disabled:shadow-none"
-                whileHover={!isLoading && input.trim() ? { scale: 1.1 } : {}}
-                whileTap={!isLoading && input.trim() ? { scale: 0.95 } : {}}
+                whileHover={!isLoading && input.trim() && features.isAIAvailable() ? { scale: 1.1 } : {}}
+                whileTap={!isLoading && input.trim() && features.isAIAvailable() ? { scale: 0.95 } : {}}
                 aria-label="Send message"
             >
                 <SendIcon />
